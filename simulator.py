@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import datetime
+import copy
 from collections import Counter
 import requests
 from requests_futures.sessions import FuturesSession
@@ -20,7 +21,6 @@ def datetime_type(date):
 
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-s', '--startdate', required=True, type=datetime_type)
 parser.add_argument('-e', '--enddate', required=True, type=datetime_type)
 
 
@@ -47,10 +47,10 @@ class Simulator(object):
     # tuple of timestamps where if a deadline is within the range, try to send
     range_to_send = (None, None)
 
-    def __init__(self, start_time, end_time):
+    def __init__(self, end_time):
         self.cur_time = time.mktime(datetime.datetime.utcnow().timetuple())
-        self.start_time = start_time
         self.end_time = end_time
+        self._load_start_time()
         self._load_observations()
         self._load_last_time()
         self._load_app_names()
@@ -59,7 +59,6 @@ class Simulator(object):
             min(self.last_time, self.cur_time - 3600),
             self.cur_time,
         )
-        print('range is', self.range_to_send)
 
     def send_needed(self):
         to_send = self._get_to_send()
@@ -67,7 +66,6 @@ class Simulator(object):
         status_codes = self._process_replies(futures)
         self._write_state()
         self._write_last_time()
-        print(status_codes)
         return status_codes, futures
 
     def _send_futures(self, to_send):
@@ -139,6 +137,8 @@ class Simulator(object):
                     app_name: {} for app_name in self.app_names
                 }))
         self.state = _read_json('state.json')
+        for app_name in self.state:
+            self.state[app_name] = dict(self.state[app_name])
         # now ensure that in case there are new app_names they get added
         for app_name in self.app_names:
             if app_name not in self.state:
@@ -146,7 +146,10 @@ class Simulator(object):
 
     def _write_state(self):
         with open('state.json', 'w') as fh:
-            fh.write(json.dumps(self.state))
+            towrite = copy.deepcopy(self.state)
+            for app_name in towrite:
+                towrite[app_name] = list(towrite[app_name].items())
+            fh.write(json.dumps(towrite))
 
     def _write_last_time(self):
         with open('last_time.json', 'w') as fh:
@@ -174,6 +177,13 @@ class Simulator(object):
             del obs['target']
             observations.append(Observation(_id, obs))
         self.observations = observations[:-50]
+
+    def _load_start_time(self):
+        if not os.path.exists('start_time.json'):
+            with open('start_time.json', 'w') as fh:
+                fh.write(str(self.cur_time))
+        with open('start_time.json') as fh:
+            self.start_time = float(fh.read())
 
 
 class Deadline(object):
@@ -213,11 +223,13 @@ class AppObservation(object):
 if __name__ == '__main__':
 
     args = parser.parse_args()
-    start = time.mktime(args.startdate.timetuple())
     end = time.mktime(args.enddate.timetuple())
+
     while True:
-        s = Simulator(start_time=start, end_time=end)
+        s = Simulator(end_time=end)
         start_t = time.time()
-        s.send_needed()
-        print(f'round completed in {time.time() - start_t} seconds')
+        _status_codes, _futures = s.send_needed()
+        if _status_codes:
+            print(_status_codes)
+            print(f'round completed in {time.time() - start_t} seconds')
         time.sleep(1)
