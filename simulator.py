@@ -11,7 +11,7 @@ import pandas as pd
 DATE_FORMAT = "%d-%m-%Y"
 
 
-def valid_date(date):
+def datetime_type(date):
     try:
         return datetime.datetime.strptime(date, DATE_FORMAT)
     except ValueError:
@@ -20,8 +20,8 @@ def valid_date(date):
 
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-s', '--startdate', required=True, type=valid_date)
-parser.add_argument('-e', '--enddate', required=True, type=valid_date)
+parser.add_argument('-s', '--startdate', required=True, type=datetime_type)
+parser.add_argument('-e', '--enddate', required=True, type=datetime_type)
 
 
 def _read_json(filename):
@@ -51,10 +51,10 @@ class Simulator(object):
         self.cur_time = time.mktime(datetime.datetime.utcnow().timetuple())
         self.start_time = start_time
         self.end_time = end_time
-        self.load_observations()
-        self.load_last_time()
-        self.load_app_names()
-        self.load_state()
+        self._load_observations()
+        self._load_last_time()
+        self._load_app_names()
+        self._load_state()
         self.range_to_send = (
             min(self.last_time, self.cur_time - 3600),
             self.cur_time,
@@ -62,10 +62,17 @@ class Simulator(object):
         print('range is', self.range_to_send)
 
     def send_needed(self):
-        to_send = self.get_to_send()
+        to_send = self._get_to_send()
+        futures = self._send_futures(to_send)
+        status_codes = self._process_replies(futures)
+        self._write_state()
+        self._write_last_time()
+        print(status_codes)
+        return status_codes, futures
+
+    def _send_futures(self, to_send):
         session = FuturesSession(max_workers=50)
         futures = []
-        success_count = 0
         print('going to try to send {}'.format(len(to_send)))
         for app_obs in to_send:
             future = session.post(
@@ -76,8 +83,12 @@ class Simulator(object):
                 })
             futures.append((future, app_obs))
         print('sent {} requests, waiting for replies'.format(len(to_send)))
+        return futures
+
+    def _process_replies(self, futures):
+
         status_codes = Counter()
-        for future, state in futures:
+        for future, app_obs in futures:
             try:
                 result = future.result()
             except requests.exceptions.ConnectionError as e:
@@ -92,13 +103,9 @@ class Simulator(object):
                 except Exception as e:
                     print(e)
 
-                success_count += 1
-        self.write_state()
-        self.write_last_time()
-        print(status_codes)
-        return status_codes, futures
+        return status_codes
 
-    def get_to_send(self):
+    def _get_to_send(self):
         deadlines = [
             x for x in self.get_deadlines()
             if self.range_to_send[0] < x.deadline < self.range_to_send[1]
@@ -125,7 +132,7 @@ class Simulator(object):
     def get_status(self, app_name, obs_id):
         return self.state[app_name].get(obs_id)
 
-    def load_state(self):
+    def _load_state(self):
         if not os.path.exists('state.json'):
             with open('state.json', 'w') as fh:
                 fh.write(json.dumps({
@@ -137,24 +144,24 @@ class Simulator(object):
             if app_name not in self.state:
                 self.state[app_name] = {}
 
-    def write_state(self):
+    def _write_state(self):
         with open('state.json', 'w') as fh:
             fh.write(json.dumps(self.state))
 
-    def write_last_time(self):
+    def _write_last_time(self):
         with open('last_time.json', 'w') as fh:
             fh.write(str(self.last_time))
 
-    def load_app_names(self):
+    def _load_app_names(self):
         self.app_names = _read_json('app_names.json')
 
-    def load_last_time(self):
+    def _load_last_time(self):
         if not os.path.exists('last_time.json'):
             with open('last_time.json', 'w') as fh:
                 fh.write(str(self.cur_time))
         self.last_time = _read_json('last_time.json')
 
-    def load_observations(self):
+    def _load_observations(self):
         df = pd.concat([
             pd.read_csv('test_will_give_outcomes.csv'),
             pd.read_csv('test_no_give_outcomes.csv')
@@ -210,5 +217,7 @@ if __name__ == '__main__':
     end = time.mktime(args.enddate.timetuple())
     while True:
         s = Simulator(start_time=start, end_time=end)
+        start_t = time.time()
         s.send_needed()
+        print(f'round completed in {time.time() - start_t} seconds')
         time.sleep(1)
