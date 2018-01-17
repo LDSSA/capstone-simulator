@@ -94,12 +94,15 @@ class Simulator(object):
                 continue
             status_codes[result.status_code] += 1
             success = 200 <= future.result().status_code < 300
+            # -1 is a proba error code and this is what will be recorded
+            # if a valid proba isn't returned
+            proba = -1
             if success:
                 try:
                     proba = result.json()['proba']
-                    self.state[app_obs.app_name][app_obs.deadline.obs.id] = proba
                 except Exception as e:
                     print(e)
+            self.state[app_obs.app_name][app_obs.deadline.obs.id] = proba
 
         return status_codes
 
