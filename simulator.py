@@ -26,7 +26,8 @@ parser.add_argument('-e', '--enddate', required=True, type=datetime_type)
 
 def _read_json(filename):
     with open(filename) as fh:
-        return json.load(fh)
+        state = json.load(fh)
+    return state
 
 
 class Simulator(object):
