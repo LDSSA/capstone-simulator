@@ -197,19 +197,10 @@ class ObservationSimulator(Simulator):
     def _process_result(self, result):
         return result.json()['proba']
 
-    def _load_observations(self):
-        # override this because we only want to send true outcomes for
-        # 500 observations
-        super()._load_observations()
-        self.observations = self.observations[:500]
-
 
 class TrueOutcomeSimulator(Simulator):
-    # where to store the result of the version of the simulator
     state_filename = 'true_outcome_state.json'
-    # where to store the star time of the simulation
     start_time_filename = 'true_outcome_start_time.json'
-    # where to store the last time that the simulator ran
     last_time_filename = 'true_outcome_last_time.json'
 
     def _send_request(self, session, app_obs):
@@ -222,6 +213,12 @@ class TrueOutcomeSimulator(Simulator):
 
     def _process_result(self, result):
         return result.status_code
+
+    def _load_observations(self):
+        # override this because we only want to send true outcomes for
+        # 500 observations
+        super()._load_observations()
+        self.observations = self.observations[:500]
 
 
 class Deadline(object):
