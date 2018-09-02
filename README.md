@@ -8,9 +8,9 @@ To run the full simulator, you need to run two scripts:
 # exactly at January 26th at 01h01 you would execute the following:
 
 # start the simulator that sends observations uniformely distributed over time
-python rum simulation.py --enddate 26-01-2018 "observation"
+python run-simulation.py --enddate 26-01-2018 "observation"
 
 # start the simulator that sends the true outcomes uniformely distributed
 # until the 24th because you want them to end early
-python rum simulation.py --enddate 24-01-2018 "true-outcome"
+python run-simulation.py --enddate 24-01-2018 "true-outcome"
 ```
