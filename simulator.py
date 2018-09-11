@@ -199,7 +199,7 @@ class Simulator(object):
 class ObservationSimulator(Simulator):
     simulator_name = 'observation'
     endpoint = 'https://{app_name}.herokuapp.com/predict'
-    # filename = 'X_test_1.csv'
+    # filename = 'X_test.csv'
     filename = 'X_train.csv'  # TODO change back
 
     def __init__(self, *args, **kwargs):
@@ -208,21 +208,17 @@ class ObservationSimulator(Simulator):
     def _load_observations(self):
         df = pd.read_csv(self.filename)
         observations = []
-        for _, obs in df.iterrows():
+        for idx, obs in df.iterrows():
             obs = obs.to_dict()
             print(obs)
-            _id = obs['id']
-            del obs['id']
+            # _id = obs['id']
+            # del obs['id']
             observations.append({
-                'id': _id,
+                # 'id': _id,
+                 'id': idx,
                 'observation': obs,
             })
         return observations
-
-
-class SecondObservationSimulator(ObservationSimulator):
-    simulator_name = 'observation'
-    filename = 'X_test_2.csv'
 
 
 class TrueOutcomeSimulator(Simulator):
@@ -237,10 +233,11 @@ class TrueOutcomeSimulator(Simulator):
     def _load_observations(self):
         df = pd.read_csv(self.filename)
         observations = []
-        for _, obs in df.iterrows():
+        for idx, obs in df.iterrows():
             obs = obs.to_dict()
             observations.append({
-                'id': obs['id'],
+                # 'id': obs['id'],
+                'id': idx,
                 'target': obs['target'],
             })
         return observations
