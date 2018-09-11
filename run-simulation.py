@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(
     description='Set the end time of the simulator.')
 parser.add_argument('-e', '--enddate', type=datetime_type)
 parser.add_argument('-s', '--simulator', required=True,
-                    choices=['observation', 'observation2', 'true-outcome'])
+                    choices=['observation', 'true-outcome'])
 
 
 if __name__ == '__main__':
@@ -30,8 +30,6 @@ if __name__ == '__main__':
 
     if args.simulator == 'observation':
         simulator = ObservationSimulator(end_time=end_time)
-    elif args.simulator == 'observation2':
-        simulator = SecondObservationSimulator(end_time=end_time)
     else:
         simulator = TrueOutcomeSimulator(end_time=end_time)
 
