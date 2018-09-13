@@ -2,9 +2,7 @@
 
 import datetime
 import argparse
-from simulator import (ObservationSimulator,
-                       SecondObservationSimulator,
-                       TrueOutcomeSimulator)
+from simulator import ObservationSimulator, TrueOutcomeSimulator
 
 DATE_FORMAT = "%d-%m-%Y"
 

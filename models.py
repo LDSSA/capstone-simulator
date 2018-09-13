@@ -36,10 +36,10 @@ class Observation(peewee.Model):
     student = peewee.ForeignKeyField(Student, backref='students')
     observation_id = peewee.IntegerField()
 
-    response_time = peewee.IntegerField(null=True)
+    response_time = peewee.FloatField(null=True)
     response_status = peewee.IntegerField(null=True)
-    response_content = peewee.CharField()
-    response_exception = peewee.CharField()
+    response_content = peewee.CharField(null=True)
+    response_exception = peewee.CharField(null=True)
     response_timeout = peewee.BooleanField(default=False)
 
     class Meta:

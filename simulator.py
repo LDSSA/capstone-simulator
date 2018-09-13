@@ -86,6 +86,13 @@ class Simulator(object):
 
             observations = self._get_due_observations(student,
                                                       self.observations)
+            if observations:
+                logger.info("%s observations to send ids %s~%s",
+                            len(observations),
+                            observations[0]['id'],
+                            observations[-1]['id'],
+                            )
+
             for observation in observations:
                 try:
                     self.send_one(student, observation)
@@ -111,7 +118,7 @@ class Simulator(object):
 
             logger.info("Runtime %s: %s",
                         student.email,
-                        int(time.time() - start))
+                        time.time() - start)
 
             if window_end >= self.simulator.end_time:
                 logger.info("Student finished %s", student.email)
@@ -122,7 +129,7 @@ class Simulator(object):
     def send_one(self, student, observation):
         try:
             response = requests.post(
-                self.endpoint.format(app_name=student.app_name),
+                self.endpoint.format(app_name=student.app),
                 json=observation,
                 timeout=self.timeout,
             )
@@ -152,6 +159,9 @@ class Simulator(object):
             response.raise_for_status()
 
         except requests.exceptions.HTTPError as exc:
+            logger.debug("Observation %s response status: %s",
+                         observation['id'],
+                         response.status_code)
             obj = models.Observation.create(
                 timestamp=int(time.time()),
                 simulator=self.simulator,
@@ -169,6 +179,9 @@ class Simulator(object):
                 content = response.text
 
             except json.JSONDecodeError as exc:
+                logger.debug("Observation %s response status: %s",
+                             observation['id'],
+                             response.status_code)
                 logger.warning("JSON decode error %s %s",
                                student.email,
                                observation['id'])
@@ -183,6 +196,9 @@ class Simulator(object):
                 )
 
             else:
+                logger.debug("Observation %s response status: %s",
+                             observation['id'],
+                             response.status_code)
                 obj = models.Observation.create(
                     timestamp=int(time.time()),
                     simulator=self.simulator,
@@ -210,12 +226,11 @@ class ObservationSimulator(Simulator):
         observations = []
         for idx, obs in df.iterrows():
             obs = obs.to_dict()
-            print(obs)
             # _id = obs['id']
             # del obs['id']
             observations.append({
                 # 'id': _id,
-                 'id': idx,
+                'id': idx,
                 'observation': obs,
             })
         return observations
