@@ -27,7 +27,7 @@ if __name__ == '__main__':
         if student != item.student.email or student is None:
             print(f"# {item.student.email}")
             student = item.student.email
-        print(f"    [{item.status}] {item.count}")
+        print(f"    [{item.response_status}] {item.count}")
 
 
 

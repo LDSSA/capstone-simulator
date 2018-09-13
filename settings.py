@@ -27,7 +27,6 @@ LOGGING = {
     },
     'handlers': {
         'default': {
-            'level': 'INFO',
             'formatter': 'standard',
             'class': 'logging.StreamHandler',
         },
@@ -35,8 +34,13 @@ LOGGING = {
     'loggers': {
         '': {
             'handlers': ['default'],
-            'level': 'DEBUF',
+            'level': 'INFO',
             'propagate': True
+        },
+        'simulator': {
+            'handlers': ['default'],
+            'level': 'DEBUG',
+            'propagate': False
         },
     }
 }
