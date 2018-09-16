@@ -249,7 +249,7 @@ class ObservationSimulator(Simulator):
 
 class TrueOutcomeSimulator(Simulator):
     simulator_name = 'true-outcome'
-    endpoint = 'https://{app_name}.herokuapp.com/predict'
+    endpoint = 'https://{app_name}.herokuapp.com/update'
     # filename = 'y_test_1.csv'
     filename = 'y_train.csv'  # TODO change back
 
@@ -264,6 +264,6 @@ class TrueOutcomeSimulator(Simulator):
             observations.append({
                 # 'id': obs['id'],
                 'id': idx,
-                'target': obs['target'],
+                'true_class': obs['target'],
             })
         return observations
