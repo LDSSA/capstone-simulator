@@ -24,7 +24,11 @@ parser.add_argument('-s', '--simulator', required=True,
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    end_time = int(args.enddate.timestamp())
+    if args.enddate:
+        end_time = int(args.enddate.timestamp())
+
+    else:
+        end_time = None
 
     if args.simulator == 'observation':
         simulator = ObservationSimulator(end_time=end_time)

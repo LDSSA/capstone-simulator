@@ -30,6 +30,10 @@ class Simulator(object):
             self.simulator = models.Simulator.get(
                 models.Simulator.name == simulator_name)
 
+            if end_time:
+                self.simulator.end_time = end_time
+                self.simulator.save()
+
         except peewee.DoesNotExist:
             if end_time is None:
                 raise RuntimeError("end_time required")
@@ -39,6 +43,7 @@ class Simulator(object):
                 start_time=int(time.time()),
                 end_time=end_time,
             )
+
 
     def _load_observations(self):
         raise NotImplementedError()
@@ -50,12 +55,13 @@ class Simulator(object):
         if student.last_window_end is None:
             student.last_window_end = self.simulator.start_time
 
-        # Start index
         start_idx = int((student.last_window_end - self.simulator.start_time)
                         / interval)
+        # end_idx excluded
         end_idx = int(
             (student.last_window_end + self.window - self.simulator.start_time)
             / interval)
+        logger.debug("Indexes %s~%s", start_idx, end_idx-1)
 
         due = []
         for observation in observations[start_idx:end_idx]:
@@ -124,7 +130,12 @@ class Simulator(object):
                 logger.info("Student finished %s", student.email)
                 break
 
-            time.sleep(min(0, window_end - now))
+            sleep_time = window_end - now
+            if sleep_time < 0:
+                sleep_time = 0
+
+            logger.debug("Sleeping for %s", sleep_time)
+            time.sleep(sleep_time)
 
     def send_one(self, student, observation):
         try:
