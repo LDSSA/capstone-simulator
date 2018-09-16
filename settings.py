@@ -34,7 +34,7 @@ LOGGING = {
             'formatter': 'standard',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': "my_log.log",
-            'maxBytes': 2048,
+            'maxBytes': 10485760,
             'backupCount': 10,
         }
     },
