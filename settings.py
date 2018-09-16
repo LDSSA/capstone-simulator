@@ -21,7 +21,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
-            'format': ('[%(levelname)s] %(filename)s:%(lineno)d in '
+            'format': ('[%(levelname)s] %(threadName)s %(filename)s:%(lineno)d in '
                        '%(funcName)s %(message)s'),
         },
     },
@@ -30,15 +30,22 @@ LOGGING = {
             'formatter': 'standard',
             'class': 'logging.StreamHandler',
         },
+        'file': {
+            'formatter': 'standard',
+            'class': 'logging.RotatingFileHandler',
+            'filename': "my_log.log",
+            'maxBytes': 2048,
+            'backupCount': 10,
+        }
     },
     'loggers': {
         '': {
-            'handlers': ['default'],
+            'handlers': ['default', 'file'],
             'level': 'INFO',
             'propagate': True
         },
         'simulator': {
-            'handlers': ['default'],
+            'handlers': ['default', 'file'],
             'level': 'DEBUG',
             'propagate': False
         },
