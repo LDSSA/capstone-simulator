@@ -29,7 +29,7 @@ for student in students:
         print('========================================================')
         print(student.email)
         max_choices = min(len(bads), 10)
-        random_bads = numpy.random.choices(bads, size=max_choices)
+        random_bads = numpy.random.choice(bads, size=max_choices)
 
         for observation in random_bads:
             msg = f"[{observation.observation_id}] "
