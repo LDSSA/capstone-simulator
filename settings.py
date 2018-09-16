@@ -32,7 +32,7 @@ LOGGING = {
         },
         'file': {
             'formatter': 'standard',
-            'class': 'logging.RotatingFileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': "my_log.log",
             'maxBytes': 2048,
             'backupCount': 10,
