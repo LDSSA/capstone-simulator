@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class Simulator(object):
-    timeout = 5
-    window = 5  # Time in seconds processed for each cycle
+    timeout = 30
+    window = 30  # Time in seconds processed for each cycle
     endpoint = None
     filename = None
 
@@ -226,22 +226,26 @@ class Simulator(object):
 class ObservationSimulator(Simulator):
     simulator_name = 'observation'
     endpoint = 'https://{app_name}.herokuapp.com/predict'
-    # filename = 'X_test.csv'
-    filename = 'X_train.csv'  # TODO change back
+    filename = ['X_test_1.csv', 'X_test_2.csv']
 
     def __init__(self, *args, **kwargs):
         super().__init__(self.simulator_name, *args, **kwargs)
 
     def _load_observations(self):
-        df = pd.read_csv(self.filename)
+        if isinstance(self.filename, (tuple, list)):
+            df = pd.concat(
+                [pd.read_csv(filename) for filename in self.filename])
+
+        else:
+            df = pd.read_csv(self.filename)
+
         observations = []
-        for idx, obs in df.iterrows():
+        for _, obs in df.iterrows():
             obs = obs.to_dict()
-            # _id = obs['id']
-            # del obs['id']
+            _id = obs['id']
+            del obs['id']
             observations.append({
-                # 'id': _id,
-                'id': idx,
+                'id': _id,
                 'observation': obs,
             })
         return observations
@@ -250,8 +254,7 @@ class ObservationSimulator(Simulator):
 class TrueOutcomeSimulator(Simulator):
     simulator_name = 'true-outcome'
     endpoint = 'https://{app_name}.herokuapp.com/update'
-    # filename = 'y_test_1.csv'
-    filename = 'y_train.csv'  # TODO change back
+    filename = 'y_test_1.csv'
 
     def __init__(self, *args, **kwargs):
         super().__init__(self.simulator_name, *args, **kwargs)
@@ -259,11 +262,10 @@ class TrueOutcomeSimulator(Simulator):
     def _load_observations(self):
         df = pd.read_csv(self.filename)
         observations = []
-        for idx, obs in df.iterrows():
+        for _, obs in df.iterrows():
             obs = obs.to_dict()
             observations.append({
-                # 'id': obs['id'],
-                'id': idx,
-                'true_class': obs['target'],
+                'id': obs['id'],
+                'true_class': obs['true_outcome'],
             })
         return observations
