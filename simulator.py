@@ -61,7 +61,7 @@ class Simulator(object):
         end_idx = int(
             (student.last_window_end + self.window - self.simulator.start_time)
             / interval)
-        logger.debug("Indexes %s~%s", start_idx, end_idx-1)
+        logger.debug("Indexes %s~%s", start_idx, end_idx)
 
         due = []
         for observation in observations[start_idx:end_idx]:
