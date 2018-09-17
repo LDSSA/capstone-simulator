@@ -30,6 +30,10 @@ class Simulator(object):
             self.simulator = models.Simulator.get(
                 models.Simulator.name == simulator_name)
 
+            if not self.simulator.start_time:
+                self.simulator.start_time = int(time.time())
+                self.simulator.save()
+
             if end_time:
                 self.simulator.end_time = end_time
                 self.simulator.save()
@@ -43,7 +47,6 @@ class Simulator(object):
                 start_time=int(time.time()),
                 end_time=end_time,
             )
-
 
     def _load_observations(self):
         raise NotImplementedError()
@@ -81,7 +84,8 @@ class Simulator(object):
     def run(self):
         for student in self.students:
             if student.app:
-                worker = threading.Thread(name=student.email,
+                worker = threading.Thread(name="%s-%s" % (self.simulator.name,
+                                                     student.email),
                                           target=self.run_student,
                                           args=(student, ))
                 worker.start()

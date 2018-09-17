@@ -11,8 +11,8 @@ db = engine(settings.DATABASE['NAME'], **kwargs)
 
 class Simulator(peewee.Model):
     name = peewee.CharField(index=True)
-    start_time = peewee.IntegerField()  # Start ts for the simulator
-    end_time = peewee.IntegerField()  # Timestamp by which the sim ends
+    start_time = peewee.IntegerField(null=True)  # Start ts for the simulator
+    end_time = peewee.IntegerField(null=True)  # Timestamp by which the sim ends
 
     class Meta:
         database = db

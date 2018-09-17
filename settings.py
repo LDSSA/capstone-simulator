@@ -6,14 +6,14 @@ DATABASE = {
 }
 
 
-#DATABASE = {
-#    'ENGINE': 'PostgresqlDatabase',
-#    'HOST': '',
-#    'PORT': '',
-#    'NAME': '',
-#    'USER': '',
-#    'PASSWORD': '',
-#}
+# DATABASE = {
+#     'ENGINE': 'PostgresqlDatabase',
+#     'HOST': 'capstone.cl9uj9cucww7.eu-west-1.rds.amazonaws.com',
+#     'PORT': '5432',
+#     'NAME': 'capstone',
+#     'USER': 'root',
+#     'PASSWORD': '',
+# }
 
 
 LOGGING = {
@@ -29,6 +29,7 @@ LOGGING = {
         'default': {
             'formatter': 'standard',
             'class': 'logging.StreamHandler',
+            'level': 'INFO',
         },
         'file': {
             'formatter': 'standard',
