@@ -4,3 +4,5 @@ __pycache__/*
 TODO
 students.csv
 predictions.db
+datasets
+inpynb_checkpoints
