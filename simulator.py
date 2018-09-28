@@ -1,258 +1,275 @@
-import time
 import json
-import os
-import datetime
-import copy
-from collections import Counter
-import requests
-from requests_futures.sessions import FuturesSession
+import logging
+import threading
+import time
+
 import pandas as pd
+import peewee
+import requests
+
+import settings
+import models
 
 
-def _read_json(filename):
-    with open(filename) as fh:
-        state = json.load(fh)
-    return state
+logger = logging.getLogger(__name__)
 
 
 class Simulator(object):
-    # unix timestamp
-    start_time = None
-    # unix timestamp
-    end_time = None
-    # unix timestamp
-    cur_time = None
-    # last time the send_needed function was run (unix timestamp)
-    last_time = None
-    # the state of all requests to be made to all servers
-    state = None
-    # an array of observations created from the test* csv files
-    observations = None
-    # a list of strings
-    app_names = None
-    # tuple of timestamps where if a deadline is within the range, try to send
-    range_to_send = (None, None)
-    # interval in seconds in between successive requests
-    interval = None
+    timeout = 30
+    window = 30  # Time in seconds processed for each cycle
+    endpoint = None
+    filename = None
 
-    # where to store the result of the version of the simulator
-    state_filename = None
-    # where to store the star time of the simulation
-    start_time_filename = None
-    # where to store the last time that the simulator ran
-    last_time_filename = None
+    def __init__(self, simulator_name, end_time=None):
+        self.simulator_name = simulator_name
 
-    def __init__(self, end_time):
-        self.cur_time = time.mktime(datetime.datetime.utcnow().timetuple())
-        self.end_time = end_time
-        self._load_start_time()
-        self._load_observations()
-        self._load_last_time()
-        self._load_app_names()
-        self._load_state()
-        self.range_to_send = (
-            min(self.last_time, self.cur_time - 3600),
-            self.cur_time,
-        )
-        self.interval = (
-            (self.end_time - self.start_time) / len(self.observations))
-        print('will send at interval {}'.format(self.interval))
+        self.students = models.Student.select()
+        self.observations = self._load_observations()
 
-    def send_needed(self):
-        to_send = self._get_to_send()
-        futures = self._send_futures(to_send)
-        status_codes = self._process_replies(futures)
-        self._write_state()
-        self._write_last_time()
-        return status_codes, futures
+        try:
+            self.simulator = models.Simulator.get(
+                models.Simulator.name == simulator_name)
 
-    def _send_futures(self, to_send):
-        session = FuturesSession(max_workers=50)
-        futures = []
-        print('going to try to send {}'.format(len(to_send)))
-        for app_obs in to_send:
-            future = self._send_request(session, app_obs)
-            futures.append((future, app_obs))
-        print('sent {} requests, waiting for replies'.format(len(to_send)))
-        return futures
+            if not self.simulator.start_time:
+                self.simulator.start_time = int(time.time())
+                self.simulator.save()
 
-    def _process_replies(self, futures):
+            if end_time:
+                self.simulator.end_time = end_time
+                self.simulator.save()
 
-        status_codes = Counter()
-        for future, app_obs in futures:
-            try:
-                result = future.result()
-            except requests.exceptions.ConnectionError as e:
-                status_codes['disaster'] += 1
-                continue
-            status_codes[result.status_code] += 1
-            success = 200 <= future.result().status_code < 300
-            # -1 is a proba error code and this is what will be recorded
-            # if a valid proba isn't returned
-            reply = -1
-            if success:
-                try:
-                    reply = self._process_result(result)
-                except Exception as e:
-                    print(e)
-            self.state[app_obs.app_name][app_obs.deadline.obs.id] = reply
+        except peewee.DoesNotExist:
+            if end_time is None:
+                raise RuntimeError("end_time required")
 
-        return status_codes
-
-    def _get_to_send(self):
-        deadlines = [
-            x for x in self.get_deadlines()
-            if self.range_to_send[0] < x.deadline < self.range_to_send[1]
-        ]
-        to_send = []
-        for app_name in self.app_names:
-            to_send += [
-                AppObservation(deadline, app_name)
-                for deadline in deadlines
-                if self.get_status(app_name, deadline.obs.id) is None
-            ]
-        return to_send
-
-    def get_deadlines(self):
-
-        deadlines = []
-        cur_deadline = self.start_time
-        for obs in self.observations:
-            deadlines.append(Deadline(cur_deadline, obs))
-            cur_deadline += self.interval
-        return deadlines
-
-    def get_status(self, app_name, obs_id):
-        return self.state[app_name].get(obs_id)
-
-    def _load_state(self):
-        if not os.path.exists(self.state_filename):
-            with open(self.state_filename, 'w') as fh:
-                fh.write(json.dumps({
-                    app_name: {} for app_name in self.app_names
-                }))
-        self.state = _read_json(self.state_filename)
-        for app_name in self.state:
-            self.state[app_name] = dict(self.state[app_name])
-        # now ensure that in case there are new app_names they get added
-        for app_name in self.app_names:
-            if app_name not in self.state:
-                self.state[app_name] = {}
-
-    def _write_state(self):
-        with open(self.state_filename, 'w') as fh:
-            towrite = copy.deepcopy(self.state)
-            for app_name in towrite:
-                towrite[app_name] = list(towrite[app_name].items())
-            fh.write(json.dumps(towrite))
-
-    def _write_last_time(self):
-        with open(self.last_time_filename, 'w') as fh:
-            fh.write(str(self.last_time))
-
-    def _load_app_names(self):
-        self.app_names = _read_json('app_names.json')
-
-    def _load_last_time(self):
-        if not os.path.exists(self.last_time_filename):
-            with open(self.last_time_filename, 'w') as fh:
-                fh.write(str(self.cur_time))
-        self.last_time = _read_json(self.last_time_filename)
+            self.simulator = models.Simulator.create(
+                name=simulator_name,
+                start_time=int(time.time()),
+                end_time=end_time,
+            )
 
     def _load_observations(self):
-        df = pd.concat([
-            pd.read_csv('test_will_give_outcomes.csv'),
-            pd.read_csv('test_no_give_outcomes.csv')
-        ])
-        observations = []
-        for _, obs in df.iterrows():
-            obs = obs.to_dict()
-            _id, true_class = obs['id'], obs['target']
-            del obs['id']
-            del obs['target']
-            observations.append(Observation(_id, obs, true_class))
-        self.observations = observations[:-50]
+        raise NotImplementedError()
 
-    def _load_start_time(self):
-        if not os.path.exists(self.start_time_filename):
-            with open(self.start_time_filename, 'w') as fh:
-                fh.write(str(self.cur_time))
-        with open(self.start_time_filename) as fh:
-            self.start_time = float(fh.read())
+    def _get_due_observations(self, student, observations):
+        interval = ((self.simulator.end_time - self.simulator.start_time)
+                    / len(observations))
+
+        if student.last_window_end is None:
+            student.last_window_end = self.simulator.start_time
+
+        start_idx = int((student.last_window_end - self.simulator.start_time)
+                        / interval)
+        # end_idx excluded
+        end_idx = int(
+            (student.last_window_end + self.window - self.simulator.start_time)
+            / interval)
+        logger.debug("Indexes %s~%s", start_idx, end_idx)
+
+        due = []
+        for observation in observations[start_idx:end_idx]:
+            # Check if this observation has been sent successfully
+            exists = models.Observation.select().where(
+                models.Observation.simulator == self.simulator,
+                models.Observation.student == student,
+                models.Observation.observation_id == observation['id'],
+                models.Observation.response_status >= 200,
+                models.Observation.response_status < 300,
+                ).exists()
+            if not exists:
+                due.append(observation)
+
+        return due
+
+    def run(self):
+        for student in self.students:
+            if student.app:
+                worker = threading.Thread(name="%s-%s" % (self.simulator.name,
+                                                     student.email),
+                                          target=self.run_student,
+                                          args=(student, ))
+                worker.start()
+
+    def run_student(self, student):
+        while True:
+            start = time.time()
+
+            observations = self._get_due_observations(student,
+                                                      self.observations)
+            if observations:
+                logger.info("%s observations to send ids %s~%s",
+                            len(observations),
+                            observations[0]['id'],
+                            observations[-1]['id'],
+                            )
+
+            for observation in observations:
+                try:
+                    self.send_one(student, observation)
+
+                except requests.exceptions.Timeout:
+                    logger.warning("Student timed out %s", student.email)
+                    # Stop the block in case of timeouts
+                    break
+
+            now = int(time.time())
+            window_end = student.last_window_end + self.window
+
+            # Sending window observations took longer than the window
+            if now > window_end:
+                student.last_window_end = now
+                student.save()
+                logger.critical("Skipping values for student %s",
+                                student.email)
+
+            else:
+                student.last_window_end = window_end
+                student.save()
+
+            logger.info("Runtime %s: %s",
+                        student.email,
+                        time.time() - start)
+
+            if window_end >= self.simulator.end_time:
+                logger.info("Student finished %s", student.email)
+                break
+
+            sleep_time = window_end - now
+            if sleep_time < 0:
+                sleep_time = 0
+
+            logger.debug("Sleeping for %s", sleep_time)
+            time.sleep(sleep_time)
+
+    def send_one(self, student, observation):
+        try:
+            response = requests.post(
+                self.endpoint.format(app_name=student.app),
+                json=observation,
+                timeout=self.timeout,
+            )
+
+        except requests.exceptions.Timeout as exc:
+            models.Observation.create(
+                timestamp=int(time.time()),
+                simulator=self.simulator,
+                student=student,
+                observation_id=observation['id'],
+                response_exception=str(exc),
+                response_timeout=True,
+            )
+            raise
+
+        except requests.exceptions.ConnectionError as exc:
+            obj = models.Observation.create(
+                timestamp=int(time.time()),
+                simulator=self.simulator,
+                student=student,
+                observation_id=observation['id'],
+                response_exception=str(exc),
+            )
+            return obj
+
+        try:
+            response.raise_for_status()
+
+        except requests.exceptions.HTTPError as exc:
+            logger.debug("Observation %s response status: %s",
+                         observation['id'],
+                         response.status_code)
+            obj = models.Observation.create(
+                timestamp=int(time.time()),
+                simulator=self.simulator,
+                student=student,
+                observation_id=observation['id'],
+                response_time=response.elapsed.total_seconds(),
+                response_status=response.status_code,
+                response_exception=str(exc),
+            )
+            return obj
+
+        else:
+            try:
+                response.json()
+                content = response.text
+
+            except json.JSONDecodeError as exc:
+                logger.debug("Observation %s response status: %s",
+                             observation['id'],
+                             response.status_code)
+                logger.warning("JSON decode error %s %s",
+                               student.email,
+                               observation['id'])
+                obj = models.Observation.create(
+                    timestamp=int(time.time()),
+                    simulator=self.simulator,
+                    student=student,
+                    observation_id=observation['id'],
+                    response_time=response.elapsed.total_seconds(),
+                    response_status=response.status_code,
+                    response_exception=str(exc),
+                )
+
+            else:
+                logger.debug("Observation %s response status: %s",
+                             observation['id'],
+                             response.status_code)
+                obj = models.Observation.create(
+                    timestamp=int(time.time()),
+                    simulator=self.simulator,
+                    student=student,
+                    observation_id=observation['id'],
+                    response_time=response.elapsed.total_seconds(),
+                    response_status=response.status_code,
+                    response_content=content,
+                )
+
+            return obj
 
 
 class ObservationSimulator(Simulator):
-    state_filename = 'state.json'
-    start_time_filename = 'start_time.json'
-    last_time_filename = 'last_time.json'
+    simulator_name = 'observation'
+    endpoint = 'https://{app_name}.herokuapp.com/predict'
+    filename = ['X_test_1.csv', 'X_test_2.csv']
 
-    def _send_request(self, session, app_obs):
-        return session.post(
-            f'https://{app_obs.app_name}.herokuapp.com/predict',
-            json={
-                'id': app_obs.deadline.obs.id,
-                'observation': app_obs.deadline.obs.obs
+    def __init__(self, *args, **kwargs):
+        super().__init__(self.simulator_name, *args, **kwargs)
+
+    def _load_observations(self):
+        if isinstance(self.filename, (tuple, list)):
+            df = pd.concat(
+                [pd.read_csv(filename) for filename in self.filename])
+
+        else:
+            df = pd.read_csv(self.filename)
+
+        observations = []
+        for _, obs in df.iterrows():
+            obs = obs.to_dict()
+            _id = obs['id']
+            del obs['id']
+            observations.append({
+                'id': _id,
+                'observation': obs,
             })
-
-    def _process_result(self, result):
-        return result.json()['proba']
+        return observations
 
 
 class TrueOutcomeSimulator(Simulator):
-    state_filename = 'true_outcome_state.json'
-    start_time_filename = 'true_outcome_start_time.json'
-    last_time_filename = 'true_outcome_last_time.json'
+    simulator_name = 'true-outcome'
+    endpoint = 'https://{app_name}.herokuapp.com/update'
+    filename = 'y_test_1.csv'
 
-    def _send_request(self, session, app_obs):
-        return session.post(
-            f'https://{app_obs.app_name}.herokuapp.com/update',
-            json={
-                'id': app_obs.deadline.obs.id,
-                'true_class': app_obs.deadline.obs.true_class
-            })
-
-    def _process_result(self, result):
-        return result.status_code
+    def __init__(self, *args, **kwargs):
+        super().__init__(self.simulator_name, *args, **kwargs)
 
     def _load_observations(self):
-        # override this because we only want to send true outcomes for
-        # 500 observations
-        super()._load_observations()
-        self.observations = self.observations[:500]
-
-
-class Deadline(object):
-    # unix timestamp
-    deadline = None
-    # Observation object
-    obs = None
-
-    def __init__(self, deadline, obs):
-        self.deadline = deadline
-        self.obs = obs
-
-
-class Observation(object):
-    # integer id
-    id = None
-    # dictionary that can be send as observation payload
-    obs = None
-    # 0 or 1 true class outcome
-    true_class = None
-
-    def __init__(self, _id, obs, true_class):
-        self.id = _id
-        self.obs = obs
-        self.true_class = true_class
-
-
-class AppObservation(object):
-    # status is None if no request has been made yet
-    # Deadline object
-    deadline = None
-    # string of app_name
-    app_name = None
-
-    def __init__(self, deadline, app_name):
-        self.app_name = app_name
-        self.deadline = deadline
+        df = pd.read_csv(self.filename)
+        observations = []
+        for _, obs in df.iterrows():
+            obs = obs.to_dict()
+            observations.append({
+                'id': obs['id'],
+                'true_class': obs['true_outcome'],
+            })
+        return observations
