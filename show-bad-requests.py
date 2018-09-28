@@ -1,34 +1,48 @@
 import sys
-from pprint import pprint
-import pandas as pd
-import json
+import numpy.random
 
-df = pd.concat([
-    pd.read_csv('test_will_give_outcomes.csv'),
-    pd.read_csv('test_no_give_outcomes.csv')
-]).set_index('id')
+import settings
+import models
 
-if sys.argv[1] == 'observation':
-    with open('state.json') as fh:
-        state = json.load(fh)
 
-    for app_name, responses in state.items():
-        bads = list(filter(lambda x: x[1] == -1, responses))
+simulator = models.Simulator.get(
+    models.Simulator.name == sys.argv[1])
+
+
+students = models.Student.select()
+
+
+for student in students:
+    bads = list(models.Observation.select().where(
+        models.Observation.simulator == simulator,
+        models.Observation.student == student,
+        models.Observation.response_status < 200,
+        models.Observation.response_status >= 300,
+        ))
+    bads.extend(list(models.Observation.select().where(
+        models.Observation.simulator == simulator,
+        models.Observation.student == student,
+        models.Observation.response_status.is_null(),
+        )))
+
+    if bads:
         print('========================================================')
-        print(app_name)
-        for obs_id, _ in bads[0:10]:
-            pprint(df.loc[obs_id].to_dict())
+        print(student.email)
+        max_choices = min(len(bads), 10)
+        random_bads = numpy.random.choice(bads, size=max_choices)
+
+        for observation in random_bads:
+            msg = f"[{observation.observation_id}] "
+            if observation.response_status:
+                msg += f"Status: {observation.response_status} "
+            if observation.response_timeout:
+                msg += f"Timeout: {observation.response_timeout} "
+            if observation.response_time:
+                msg += f"Time: {observation.response_time} "
+            if observation.response_content:
+                msg += f"Content: {observation.response_content} "
+            if observation.response_exception:
+                msg += f"Exception: {observation.response_exception} "
+
+            print(msg)
         print('\n\n\n\n')
-
-
-elif sys.argv[1] == 'true-outcome':
-
-    with open('true_outcome_state.json') as fh:
-        state = json.load(fh)
-
-    for app_name, responses in state.items():
-        bads = list(filter(lambda x: x[1] == -1, responses))
-        if bads:
-            print('========================================================')
-            print(app_name)
-            pprint(bads)

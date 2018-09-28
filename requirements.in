@@ -1,0 +1,4 @@
+psycopg-binary
+peewee
+pandas
+requests

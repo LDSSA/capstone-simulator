@@ -1,2 +1,6 @@
 .idea
 __pycache__/*
+
+TODO
+students.csv
+predictions.db
