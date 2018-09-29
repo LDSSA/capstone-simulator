@@ -1,3 +1,6 @@
+Copy `settings_example.py` to `settings.py` and fill that bad boy in!
+
+
 Sends the observations and true outcomes from the two csvs in this repo 
 uniformely distributed over a time range.
 
