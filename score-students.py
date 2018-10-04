@@ -23,7 +23,10 @@ y_true = pd.concat(
         pd.read_csv('datasets/y_test_1.csv'),
         pd.read_csv('datasets/y_test_2.csv')
     ]
-).set_index(
+)
+y_true['id'] = y_true.id + 1
+
+y_true = y_true.set_index(
     'id'
 ).true_outcome.sort_index()
 
@@ -36,9 +39,12 @@ def _parse_content(obs):
 
 def _make_complete(observations):
     for _id in y_true.index.values:
+        if _id == 0:
+            continue
         if _id not in observations:
-            observations[_id] = {1: 0, 0: 1}[y_true[_id]]
-    for _id in {9899, 4949}:
+            observations[_id] = {1: 0, 0: 1}[int(y_true[_id])]
+    # HACK!!! should definitely remove in the future
+    for _id in {0, 4950}:
         observations.pop(_id, None)
 
 
@@ -61,6 +67,10 @@ def _score_student(student, simulator):
     observations = list(models.Observation.select().where(
         models.Observation.simulator == simulator,
         models.Observation.student == student,
+        # HACK!!! should definitely remove in the future
+        models.Observation.observation_id != 0,
+        # HACK!!! should definitely remove in the future
+        models.Observation.observation_id != 4950,
         # models.Observation.response_status == 200
     ))
     observations = {
